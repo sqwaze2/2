@@ -82,7 +82,7 @@ async def build_message():
 
     
     lines = []
-    lines.append("** OUR GAMES **")
+    lines.append("## ** OUR GAMES **")
 
     for uid, (name, status, players, link) in combined:
         status_text = "Active" if status else "Down"
@@ -101,7 +101,7 @@ async def build_message():
     group_name, member_count, is_locked = group_result
     if not is_locked:
         group_link = f"https://www.roblox.com/groups/{GROUP_ID}"
-        lines.append("\n** OUR GROUP **")
+        lines.append("\n ## ** OUR GROUP **")
         lines.append(
             f"**{group_name}**\n"
             f"> * Members: {member_count:,} 👥\n"
