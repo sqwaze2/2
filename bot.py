@@ -10,7 +10,6 @@ load_dotenv()
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", "0"))
-GROUP_ID = os.getenv("GROUP_ID", "776161410")
 
 UNIVERSE_IDS = []
 i = 1
@@ -21,10 +20,24 @@ while True:
     UNIVERSE_IDS.append(uid)
     i += 1
 
+GROUP_IDS = []
+i = 1
+while True:
+    gid = os.getenv(f"GROUP_ID_{i}", "")
+    if not gid:
+        break
+    GROUP_IDS.append(gid)
+    i += 1
+# Поддержка старого GROUP_ID для обратной совместимости
+if not GROUP_IDS:
+    legacy = os.getenv("GROUP_ID", "")
+    if legacy:
+        GROUP_IDS.append(legacy)
+
 intents = discord.Intents.default()
 client = discord.Client(intents=intents)
-message_ids = []
 
+message_ids = []
 
 async def get_game_full_data(session, universe_id):
     dev_url = f"https://develop.roblox.com/v1/universes/{universe_id}"
@@ -52,7 +65,6 @@ async def get_game_full_data(session, universe_id):
         print(f"Error fetching game {universe_id}: {e}")
         return f"Game {universe_id}", False, 0, None
 
-
 async def get_group_data(session, group_id):
     url = f"https://groups.roblox.com/v1/groups/{group_id}"
     try:
@@ -66,13 +78,13 @@ async def get_group_data(session, group_id):
         print(f"Error fetching group {group_id}: {e}")
         return f"Group {group_id}", 0, False
 
-
 async def build_message():
     now = int(time.time())
+
     async with aiohttp.ClientSession() as session:
-        games_results, group_result = await asyncio.gather(
+        games_results, groups_results = await asyncio.gather(
             asyncio.gather(*[get_game_full_data(session, uid) for uid in UNIVERSE_IDS]),
-            get_group_data(session, GROUP_ID),
+            asyncio.gather(*[get_group_data(session, gid) for gid in GROUP_IDS]),
         )
 
     combined = list(zip(UNIVERSE_IDS, games_results))
@@ -80,7 +92,6 @@ async def build_message():
 
     total_online = sum(result[2] for _, result in combined)
 
-    
     lines = []
     lines.append("## ** OUR GAMES **")
 
@@ -97,21 +108,23 @@ async def build_message():
 
     lines.append(f"**Total Online: {total_online} 👥**\n")
 
+    group_lines = []
+    for gid, (group_name, member_count, is_locked) in zip(GROUP_IDS, groups_results):
+        if not is_locked:
+            group_link = f"https://www.roblox.com/groups/{gid}"
+            group_lines.append(
+                f"**{group_name}**\n"
+                f"> * Members: {member_count:,} 👥\n"
+                f"[JOIN GROUP](<{group_link}>) 👈\n"
+            )
 
-    group_name, member_count, is_locked = group_result
-    if not is_locked:
-        group_link = f"https://www.roblox.com/groups/{GROUP_ID}"
-        lines.append("## \n** OUR GROUP **")
-        lines.append(
-            f"**{group_name}**\n"
-            f"> * Members: {member_count:,} 👥\n"
-            f"[JOIN GROUP](<{group_link}>) 👈\n"
-        )
+    if group_lines:
+        lines.append("## \n** OUR GROUPS **")
+        lines.extend(group_lines)
 
     lines.append(f"\n⏱ Last Update: <t:{now}:R>")
 
     content = "\n".join(lines)
-
     chunks = []
     while len(content) > 2000:
         split_at = content.rfind("\n", 0, 2000)
@@ -123,15 +136,16 @@ async def build_message():
 
     return chunks
 
-
 @tasks.loop(seconds=1800)
 async def update_status():
     global message_ids
+
     channel = client.get_channel(CHANNEL_ID)
     if not channel:
         return
 
     chunks = await build_message()
+
     try:
         if not message_ids:
             for chunk in chunks:
@@ -152,11 +166,9 @@ async def update_status():
     except Exception as e:
         print(f"Error updating message: {e}")
 
-
 @client.event
 async def on_ready():
     print(f"Bot started as {client.user}")
     update_status.start()
-
 
 client.run(DISCORD_TOKEN)
