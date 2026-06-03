@@ -28,7 +28,7 @@ while True:
         break
     GROUP_IDS.append(gid)
     i += 1
-# Поддержка старого GROUP_ID для обратной совместимости
+
 if not GROUP_IDS:
     legacy = os.getenv("GROUP_ID", "")
     if legacy:
